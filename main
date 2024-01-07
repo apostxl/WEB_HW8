@@ -1,0 +1,70 @@
+from mongoengine import Document, StringField, ReferenceField, ListField
+from mongoengine import connect
+from models import Author, Quote
+import json
+
+class Author(Document):
+    name = StringField(required=True)
+
+class Quote(Document):
+    text = StringField(required=True)
+    author = ReferenceField(Author)
+    tags = ListField(StringField())
+
+connect('my_database', host='your_atlas_uri')
+
+def load_authors_from_json(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        authors_data = json.load(file)
+        for author_data in authors_data:
+            author = Author(name=author_data['name'])
+            author.save()
+
+def load_quotes_from_json(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        quotes_data = json.load(file)
+        for quote_data in quotes_data:
+            author = Author.objects(name=quote_data['author']).first()
+            quote = Quote(text=quote_data['text'], author=author, tags=quote_data['tags'])
+            quote.save()
+
+if __name__ == '__main__':
+    load_authors_from_json('authors.json')
+    load_quotes_from_json('quotes.json')
+def search_quotes(command):
+    if command.startswith('name:'):
+        author_name = command.split(':')[-1].strip()
+        author = Author.objects(name=author_name).first()
+        if author:
+            quotes = Quote.objects(author=author)
+            return [quote.text for quote in quotes]
+        else:
+            return []
+
+    elif command.startswith('tag:'):
+        tag = command.split(':')[-1].strip()
+        quotes = Quote.objects(tags=tag)
+        return [quote.text for quote in quotes]
+
+    elif command.startswith('tags:'):
+        tags = command.split(':')[-1].strip().split(',')
+        quotes = Quote.objects(tags__in=tags)
+        return [quote.text for quote in quotes]
+
+    elif command == 'exit':
+        return 'exit'
+
+    else:
+        return []
+
+if __name__ == '__main__':
+    while True:
+        user_input = input("Enter command: ").strip()
+        result = search_quotes(user_input)
+        if result == 'exit':
+            break
+        elif result:
+            for quote in result:
+                print(quote)
+        else:
+            print('No quotes found.')
